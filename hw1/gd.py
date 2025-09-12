@@ -4,6 +4,8 @@ import torch
 from torchvision import transforms
 from torchvision.models import VGG13_BN_Weights, vgg13_bn
 from tqdm import tqdm
+import torch.nn.functional as F
+
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
@@ -46,21 +48,59 @@ def normalize_and_jitter(img, step=32):
 
 
 def gradient_descent(input, model, loss, iterations=256):
-    lr = 0.01  # learning rate
-    for _ in tqdm(range(iterations)):
-        # Add jitter and normalize
-        img_norm = normalize_and_jitter(input)
-        # Forward pass
-        out = model(img_norm)
-        J = loss(out)
-        # Backward pass
-        if input.grad is not None:
-            input.grad.zero_()
-        J.backward()
-        # Gradient ascent step
-        with torch.no_grad():
-            input += lr * input.grad
-            input.clamp_(0, 1)  # keep image in [0, 1] range
+    lr = 0.5  # learning rate
+    wd = 0.001  # weight decay
+    img_blur_step = 50 # every img_blur_step, apply image blur
+    do_weight_decay = False # whether to apply weight decay
+    do_gradient_blur = True # whether to apply gaussian blur to the gradient
+    do_image_blur = True # whether to apply gaussian blur to the image
+
+    # Define scales
+    scales = [32, 64, 128, 224]
+
+    for size in scales:
+        # Resize to current scale
+        input = torch.nn.functional.interpolate(
+            input, size=(size, size), mode="bilinear", align_corners=False
+        )
+        input = input.clone().detach().requires_grad_(True)
+
+        # Run gradient ascent at this scale
+        for step in tqdm(range(iterations), desc=f"Scale {size}"):
+            # Add jitter and normalize
+            img_norm = normalize_and_jitter(input)
+
+            # Forward pass
+            out = model(img_norm)
+            J = loss(out)
+
+            # Backward pass
+            if input.grad is not None:
+                input.grad.zero_()
+            J.backward()
+
+            # Gradient ascent step
+            with torch.no_grad():
+                gradient = input.grad
+                
+                # Apply gradient blur
+                if do_gradient_blur:
+                    gradient = F.avg_pool2d(gradient, kernel_size=3, stride=1, padding=1)
+
+                # Apply gradient ascent
+                input.data += lr * gradient
+                
+                # Apply weight decay
+                if do_weight_decay:
+                    input.data -= wd * (input.data - 0.5)
+                
+                # Clamp to valid image range
+                input.data.clamp_(0, 1)
+                
+                # Apply image blur
+                if do_image_blur and step % img_blur_step == 0 and step > 0:
+                    input.data = F.avg_pool2d(input.data, kernel_size=3, stride=1, padding=1)
+
     return input
 
 
