@@ -46,7 +46,22 @@ def normalize_and_jitter(img, step=32):
 
 
 def gradient_descent(input, model, loss, iterations=256):
-    return input  # IMPLEMENT ME
+    lr = 0.01  # learning rate
+    for _ in tqdm(range(iterations)):
+        # Add jitter and normalize
+        img_norm = normalize_and_jitter(input)
+        # Forward pass
+        out = model(img_norm)
+        J = loss(out)
+        # Backward pass
+        if input.grad is not None:
+            input.grad.zero_()
+        J.backward()
+        # Gradient ascent step
+        with torch.no_grad():
+            input += lr * input.grad
+            input.clamp_(0, 1)  # keep image in [0, 1] range
+    return input
 
 
 def forward_and_return_activation(model, input, module):
