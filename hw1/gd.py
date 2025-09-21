@@ -75,6 +75,8 @@ def gradient_descent(input, model, loss, iterations=256):
             # Forward pass
             out = model(img_norm)
             J = loss(out)
+            # activation = forward_and_return_activation(model, img_norm, model.features[20])
+            # J = activation.mean()
 
             # Backward pass
             if input.grad is not None:
@@ -127,7 +129,11 @@ def forward_and_return_activation(model, input, module):
     model(input)
     handle.remove()
 
-    return features[0]
+    activation = features[0]
+    channel = activation.mean(dim=(0, 2, 3)).argmax().item()
+    # channel = activation.var(dim=(0, 2, 3)).argmax().item()
+    # channel = activation.max(dim=(0, 2, 3)).argmax().item()
+    return activation[:, channel:channel+1]
 
 
 if __name__ == "__main__":
