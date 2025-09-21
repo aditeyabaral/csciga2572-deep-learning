@@ -48,15 +48,17 @@ def normalize_and_jitter(img, step=32):
 
 
 def gradient_descent(input, model, loss, iterations=256):
-    lr = 0.5  # learning rate
-    wd = 0.001  # weight decay
-    img_blur_step = 50 # every img_blur_step, apply image blur
-    do_weight_decay = False # whether to apply weight decay
-    do_gradient_blur = True # whether to apply gaussian blur to the gradient
-    do_image_blur = True # whether to apply gaussian blur to the image
+    lr = 0.05  # learning rate
+    wd = 0.0001  # weight decay
+    img_blur_step = 100 # every img_blur_step, apply image blur
+    do_weight_decay = True # whether to apply weight decay
+    do_gradient_blur = False # whether to apply gaussian blur to the gradient
+    do_image_blur = False # whether to apply gaussian blur to the image
 
     # Define scales
     scales = [32, 64, 128, 224]
+    num_scales = len(scales)
+    progress_bar = tqdm(total=iterations * num_scales)
 
     for size in scales:
         # Resize to current scale
@@ -66,7 +68,7 @@ def gradient_descent(input, model, loss, iterations=256):
         input = input.clone().detach().requires_grad_(True)
 
         # Run gradient ascent at this scale
-        for step in tqdm(range(iterations), desc=f"Scale {size}"):
+        for step in range(iterations):
             # Add jitter and normalize
             img_norm = normalize_and_jitter(input)
 
@@ -92,7 +94,8 @@ def gradient_descent(input, model, loss, iterations=256):
                 
                 # Apply weight decay
                 if do_weight_decay:
-                    input.data -= wd * (input.data - 0.5)
+                    blurred_img = F.avg_pool2d(input.data, kernel_size=3, stride=1, padding=1)
+                    input.data -= wd * (input.data - blurred_img)
                 
                 # Clamp to valid image range
                 input.data.clamp_(0, 1)
@@ -100,6 +103,9 @@ def gradient_descent(input, model, loss, iterations=256):
                 # Apply image blur
                 if do_image_blur and step % img_blur_step == 0 and step > 0:
                     input.data = F.avg_pool2d(input.data, kernel_size=3, stride=1, padding=1)
+
+            # Update progress bar
+            progress_bar.update(1)
 
     return input
 
