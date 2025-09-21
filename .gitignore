@@ -1,0 +1,8 @@
+.venv/
+.vscode/
+__pycache__/
+.ruff_cache/
+
+hw1/*.jpg
+hw1/*.png
+hw1/kaggle/
